@@ -29,6 +29,7 @@ InstanceTypes = [
     'm2.xlarge',
     'm2.2xlarge',
     'm2.4xlarge',
+    'm3.xlarge',
     'c1.medium',
     'c1.xlarge',
     'cc1.4xlarge',
@@ -122,16 +123,25 @@ class EBSFactory(object):
             if self.config['ec2_size']:
                 block_map[root_device].size = self.config['ec2_size']
             block_map[root_device].delete_on_termination = True
-        reservation = self.conn.run_instances(
-            self.config['ec2_ami_id'],
-            key_name=self.config['ec2_key_name'],
-            security_groups=self.config['ec2_security_groups'] or [self.config['ec2_security_group']],
-            instance_type=self.config['ec2_instance_type'],
-            placement=self.config['ec2_zone'],
-            placement_group=self.config['ec2_placement_group'],
-            monitoring_enabled=self.config['ec2_monitoring_enabled'],
-            block_device_map=block_map,
-            user_data=self.user_data)
+        opts = {
+            'key_name': self.config['ec2_key_name'],
+            'security_groups': self.config['ec2_security_groups'] or [self.config['ec2_security_group']],
+            'instance_type': self.config['ec2_instance_type'],
+            'placement': self.config['ec2_zone'],
+            'placement_group': self.config['ec2_placement_group'],
+            'monitoring_enabled': self.config['ec2_monitoring_enabled'],
+            'block_device_map': block_map,
+            'user_data': self.user_data
+        }
+        if self.config.get('ec2_subnet_id',False):
+            # when providing subnet_id, must use security_group_ids and not
+            # named security_groups or API call will fail.
+            opts.pop('security_groups',None)
+            opts['security_group_ids'] = self.config['ec2_security_group_ids'] or [self.config['ec2_security_group_id']]
+            if not opts['security_group_ids']:
+                raise AssertionError('Must specify ec2_security_group_id or ec2_security_group_ids with subnet_id')
+            opts['subnet_id'] = self.config['ec2_subnet_id']
+        reservation = self.conn.run_instances(self.config['ec2_ami_id'], **opts)
         self.instance = reservation.instances[0]
         secs = RUN_INSTANCE_TIMEOUT
         rest_interval = 5
@@ -324,6 +334,8 @@ class EBSFactory(object):
             metavar='UBUNTU_RELEASE', default='',
             help="Ubuntu release (precise, lucid, etc.)")
         parser.add_option('--ec2-group', dest='ec2_security_group')
+        parser.add_option('--ec2-group-id', dest='ec2_security_group_id')
+        parser.add_option('--ec2-subnet-id', dest='ec2_subnet_id')
         parser.add_option('--ec2-key', dest='ec2_key_name')
         parser.add_option('--ec2-region', dest='ec2_region',
                           help="Region to use: us-east-1, etc.")
@@ -360,7 +372,7 @@ class EBSFactory(object):
             '--pillar_roots', dest='salt_pillar_roots_dir',
             metavar='SALT_PILLAR_ROOTS', default='',
             help="Assign SALT_PILLAR_ROOTS to salt minion, path as string")
-        
+
         parser.add_option(
             '--hostname', dest='hostname',
             metavar='HOSTNAME', default='',

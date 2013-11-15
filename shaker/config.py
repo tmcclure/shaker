@@ -31,6 +31,9 @@ DEFAULTS = {
     'ec2_key_name': None,
     'ec2_security_group': 'default',
     'ec2_security_groups': [],
+    'ec2_security_group_id': None,
+    'ec2_security_group_ids': [],
+    'ec2_subnet_id': None,
     'ec2_monitoring_enabled': False,
     'ec2_root_device': '/dev/sda1',
     'ec2_architecture': 'i386',
@@ -147,12 +150,12 @@ def user_profile(cli, config_dir, profile_name=None):
             msg = "Unable to find AMI for distro: {0}".format(cli.distro)
             LOG.info(msg)
     if not profile['ec2_ami_id'] and profile['ubuntu_release']:
-        profile['ec2_ami_id'] = shaker.ami.get_ami(profile['ubuntu_release'], profile)
+        profile['ec2_ami_id'] = shaker.ami.get_ami(profile, profile['ubuntu_release'])
     msg = "Selected AMI {0} in zone {1}".format(
         profile['ec2_ami_id'],
         profile['ec2_zone'])
     LOG.info(msg)
-    
+
     # if grains are specified in command-line, we override the
     # profile grains value
     if cli.salt_grains:
@@ -267,7 +270,8 @@ DEFAULT_PROFILE = """###########################################################
 
 #ec2_region: {{ ec2_region }}
 #ec2_zone: {{ ec2_zone }}
-#ec2_placement_group': {{ ec2_placement_group }}
+#ec2_placement_group: {{ ec2_placement_group }}
+#ec2_subnet_id: {{ ec2_subnet_id }}
 
 ####################################################################
 # ec2_instance_type defaults to m1.small
@@ -328,6 +332,21 @@ DEFAULT_PROFILE = """###########################################################
 ####################################################################
 
 #ec2_security_groups: []
+
+####################################################################
+# ec2_security_group_id: The security group to control port access
+# to the instance (ssh, http, etc.)  When specifying subnet_id,
+# use this setting instead of ec2_security_group
+####################################################################
+
+#ec2_security_group_id: default
+
+####################################################################
+# ec2_security_group_ids: Overrides ec2_security_group_id setting
+# if multiple groups are needed.
+####################################################################
+
+#ec2_security_group_ids: []
 
 ####################################################################
 # ec2_monitoring_enabled:
